@@ -2,59 +2,47 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>비흡연자의 쉬는시간 - 8등급 전수조사</title>
+    <title>비흡연자의 쉬는시간 - 8등급 확률 분석기</title>
 <style>
     :root {
         --bg: #fdfcf9; --panel: #ffffff; --border: #d1cdc0;
         --accent: #7a8b7c; --gold: #8d7b68; --text: #4a4a4a;
     }
-    body { background: var(--bg); font-family: 'Pretendard', sans-serif; color: var(--text); padding: 20px; }
-    .container { max-width: 600px; margin: 0 auto; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 25px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
-    h1 { text-align: center; color: var(--gold); font-size: 20px; margin-bottom: 20px; }
+    body { background: var(--bg); font-family: 'Pretendard', sans-serif; color: var(--text); padding: 10px; }
+    .container { max-width: 600px; margin: 0 auto; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 25px; }
+    h1 { text-align: center; color: var(--gold); font-size: 18px; margin-bottom: 20px; }
     
-    .search-box { position: relative; margin-bottom: 20px; }
+    .input-group { margin-bottom: 20px; position: relative; }
     #pet-name { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; box-sizing: border-box; }
     #suggestions { position: absolute; width: 100%; background: white; border: 1px solid var(--accent); z-index: 100; list-style: none; padding: 0; margin: 0; display: none; max-height: 150px; overflow-y: auto; }
     #suggestions li { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 14px; }
 
-    .summary-card { background: #f8f7f2; padding: 15px; border-radius: 12px; margin-bottom: 20px; font-size: 13px; line-height: 1.6; border-left: 4px solid var(--gold); }
+    .result-item {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 15px 10px; border-bottom: 1px solid #eee; font-family: 'Consolas', monospace;
+    }
+    .stat-main { font-size: 15px; font-weight: bold; }
+    .stat-diff { font-size: 12px; color: #888; margin-top: 4px; display: block; }
+    .prob-area { text-align: right; }
+    .prob-val { color: #e06c75; font-weight: bold; font-size: 16px; display: block; }
+    .prob-detail { font-size: 11px; color: #aaa; }
     
-    .result-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
-    .result-table th { background: #eee; padding: 10px; border: 1px solid var(--border); }
-    .result-table td { padding: 10px; border: 1px solid var(--border); text-align: center; font-family: 'Consolas', monospace; }
-    .result-table tr:hover { background: #f9f9f9; }
-    
-    #btn-gen { width: 100%; padding: 15px; background: var(--accent); color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 16px; }
-    .prob-text { color: #e06c75; font-weight: bold; font-size: 14px; }
-    .count-text { font-size: 11px; color: #999; margin-left: 5px; }
+    #btn-run { width: 100%; padding: 15px; background: var(--accent); color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; }
 </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>8등급 능력치 조합 및 출현 확률</h1>
+    <h1>8등급 모든 경우의 수 & 변동치 분석</h1>
     
-    <div class="search-box">
+    <div class="input-group">
         <input type="text" id="pet-name" placeholder="페트 이름을 입력하세요..." autocomplete="off">
         <ul id="suggestions"></ul>
     </div>
 
-    <button id="btn-gen">8등급 전수조사 및 확률 분석</button>
+    <button id="btn-run">분석 시작</button>
 
-    <div id="summary" class="summary-card" style="display:none;"></div>
-
-    <div id="result-list">
-        <table class="result-table" id="res-table" style="display:none;">
-            <thead>
-                <tr>
-                    <th>순위</th>
-                    <th>능력치 (HP Atk Def Agi)</th>
-                    <th>출현 확률</th>
-                </tr>
-            </thead>
-            <tbody id="res-body"></tbody>
-        </table>
-    </div>
+    <div id="result-list" style="margin-top:20px;"></div>
 </div>
 
 <script>
@@ -81,65 +69,78 @@
         sugg.style.display='block';
     });
 
-    document.getElementById('btn-gen').onclick = () => {
+    function getBaseStats(pet) {
+        const c = pet.initialCoefficient;
+        const h = pet.healthCoefficient+4.5, a = pet.attackCoefficient+4.5, d = pet.defenseCoefficient+4.5, g = pet.agilityCoefficient+4.5;
+        return {
+            h: Math.floor(((h*c)/100)*4 + ((a*c)/100) + ((d*c)/100) + ((g*c)/100)),
+            a: Math.floor(((h*c)/100)*0.1 + ((a*c)/100) + ((d*c)/100)*0.1 + ((g*c)/100)*0.05),
+            d: Math.floor(((h*c)/100)*0.1 + ((a*c)/100)*0.1 + ((d*c)/100) + ((g*c)/100)*0.05),
+            g: Math.floor((g*c)/100)
+        };
+    }
+
+    document.getElementById('btn-run').onclick = () => {
         const name = input.value;
         if(!petData[name]) return alert("페트를 선택해주세요.");
         
         const pet = petData[name];
-        const resBody = document.getElementById('res-body');
-        const summary = document.getElementById('summary');
-        resBody.innerHTML = '';
+        const base = getBaseStats(pet);
+        const resList = document.getElementById('result-list');
+        resList.innerHTML = '';
 
-        // 8등급 고정 조건: 모든 랜덤 보정치 hr, ar, dr, gr = 2
-        const hr = 2, ar = 2, dr = 2, gr = 2;
-        const c = pet.initialCoefficient;
-        
-        const statsCountMap = new Map(); // { "H A D G": count }
-        let totalCount = 0;
+        const statsCountMap = new Map();
+        let totalSimulations = 0;
 
-        // 보너스 포인트 10점의 모든 분배 경우의 수 탐색 (총 286가지)
+        // 8등급(보정치 +2) 상황에서 보너스 포인트 286가지 전수조사
         for (let hb = 0; hb <= 10; hb++) {
             for (let ab = 0; ab <= 10; ab++) {
                 for (let db = 0; db <= 10; db++) {
                     let gb = 10 - hb - ab - db;
                     if (gb < 0 || gb > 10) continue;
 
-                    const ih = ((pet.healthCoefficient + hr + hb) * c) / 100;
-                    const ia = ((pet.attackCoefficient + ar + ab) * c) / 100;
-                    const id = ((pet.defenseCoefficient + dr + db) * c) / 100;
-                    const ig = ((pet.agilityCoefficient + gr + gb) * c) / 100;
+                    const c = pet.initialCoefficient;
+                    const ih = ((pet.healthCoefficient + 2 + hb) * c) / 100;
+                    const ia = ((pet.attackCoefficient + 2 + ab) * c) / 100;
+                    const id = ((pet.defenseCoefficient + 2 + db) * c) / 100;
+                    const ig = ((pet.agilityCoefficient + 2 + gb) * c) / 100;
 
-                    const finalH = Math.floor(ih * 4 + ia + id + ig);
-                    const finalA = Math.floor(ih * 0.1 + ia + id * 0.1 + ig * 0.05);
-                    const finalD = Math.floor(ih * 0.1 + ia * 0.1 + id + ig * 0.05);
-                    const finalG = Math.floor(ig);
+                    const curH = Math.floor(ih * 4 + ia + id + ig);
+                    const curA = Math.floor(ih * 0.1 + ia + id * 0.1 + ig * 0.05);
+                    const curD = Math.floor(ih * 0.1 + ia * 0.1 + id + ig * 0.05);
+                    const curG = Math.floor(ig);
 
-                    const key = `${finalH} ${finalA} ${finalD} ${finalG}`;
+                    const key = `${curH} ${curA} ${curD} ${curG}`;
                     statsCountMap.set(key, (statsCountMap.get(key) || 0) + 1);
-                    totalCount++;
+                    totalSimulations++;
                 }
             }
         }
 
-        // 확률 순으로 정렬
-        const sortedStats = Array.from(statsCountMap.entries()).sort((a, b) => b[1] - a[1]);
+        const sorted = Array.from(statsCountMap.entries()).sort((a, b) => b[1] - a[1]);
 
-        summary.innerHTML = `<strong>${name}</strong> 8등급 분석:<br>분배 가능한 286가지 포인트 조합 중, 서로 다른 <strong>${statsCountMap.size}가지</strong>의 능력치 세트가 발견되었습니다. (확률 순 정렬)`;
-        summary.style.display = 'block';
-        document.getElementById('res-table').style.display = 'table';
+        sorted.forEach(([statStr, count]) => {
+            const parts = statStr.split(' ').map(Number);
+            const diffH = (parts[0] - base.h) >= 0 ? `+${parts[0] - base.h}` : parts[0] - base.h;
+            const diffA = (parts[1] - base.a) >= 0 ? `+${parts[1] - base.a}` : parts[1] - base.a;
+            const diffD = (parts[2] - base.d) >= 0 ? `+${parts[2] - base.d}` : parts[2] - base.d;
+            const diffG = (parts[3] - base.g) >= 0 ? `+${parts[3] - base.g}` : parts[3] - base.g;
 
-        sortedStats.forEach(([stat, count], idx) => {
-            const prob = ((count / totalCount) * 100).toFixed(2);
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${idx + 1}</td>
-                <td><strong>${stat}</strong></td>
-                <td>
-                    <span class="prob-text">${prob}%</span>
-                    <span class="count-text">(${count}/286)</span>
-                </td>
+            const prob = ((count / totalSimulations) * 100).toFixed(2);
+
+            const div = document.createElement('div');
+            div.className = 'result-item';
+            div.innerHTML = `
+                <div>
+                    <span class="stat-main">${statStr}</span>
+                    <span class="stat-diff">정석대비: ${diffH} ${diffA} ${diffD} ${diffG}</span>
+                </div>
+                <div class="prob-area">
+                    <span class="prob-val">${prob}%</span>
+                    <span class="prob-detail">(S8: ${count} / 전체: 286)</span>
+                </div>
             `;
-            resBody.appendChild(tr);
+            resList.appendChild(div);
         });
     };
 </script>
