@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>8등급 정밀 전수 분석기 </title>
+    <title>8등급 정밀 전수 분석기 (엔터 실행 추가)</title>
     <style>
         :root {
             --bg-main: #0a0a0a; --bg-panel: #161616; --border-main: #222222;
@@ -12,7 +12,14 @@
         body { background-color: var(--bg-main); color: var(--text-main); font-family: 'Pretendard', sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; }
         .container { max-width: 750px; width: 95%; background: var(--bg-panel); border: 1px solid var(--border-main); border-radius: 24px; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
         h1 { text-align: center; background: var(--accent-gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 24px; margin-bottom: 25px; font-weight: 800; }
+        
+        .input-group { position: relative; margin-bottom: 15px; }
+        input[type="text"] { width: 100%; padding: 15px; background: #000; color: #fff; border: 1px solid var(--border-main); border-radius: 12px; box-sizing: border-box; outline: none; font-size: 16px; transition: 0.2s; }
+        input[type="text"]:focus { border-color: #ff9500; }
+
         #analyze-btn { width: 100%; padding: 18px; background: var(--accent-gold); color: #000; border: none; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 17px; margin-bottom: 20px; }
+        #analyze-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        
         .result-list { border: 1px solid var(--border-main); border-radius: 12px; background: #000; overflow: hidden; }
         .result-item { display: flex; justify-content: space-between; padding: 14px 15px; border-bottom: 1px solid #1a1a1a; font-family: 'Consolas', monospace; font-size: 13.5px; align-items: center; }
         .stat-col { flex: 1.5; color: #fff; font-weight: bold; }
@@ -20,15 +27,16 @@
         .prob-col { flex: 2; text-align: right; color: var(--text-gold); font-weight: bold; font-size: 15px; }
         .detail-text { font-size: 11px; opacity: 0.5; font-weight: normal; margin-left: 5px; color: #fff; }
         #loading { display: none; text-align: center; color: var(--text-gold); margin-bottom: 15px; font-weight: bold; }
-        input[type="text"] { width: 100%; padding: 15px; background: #000; color: #fff; border: 1px solid var(--border-main); border-radius: 12px; margin-bottom: 15px; outline: none; font-size: 16px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>8등급 정밀 분석 (100% → 99.9% 보정)</h1>
-        <input type="text" id="pet-name" placeholder="페트 이름을 입력하세요 (예: 가스트, 만모 등)" autocomplete="off">
+        <h1>8등급 정밀 분석기</h1>
+        <div class="input-group">
+            <input type="text" id="pet-name" placeholder="페트 이름을 입력하고 엔터를 치세요" autocomplete="off">
+        </div>
         <button id="analyze-btn">데이터 분석 시작</button>
-        <div id="loading">모든 조합 시뮬레이션 중... (최대 3초)</div>
+        <div id="loading">시뮬레이션 중...</div>
         <div id="result-list" class="result-list"></div>
     </div>
 
@@ -53,8 +61,9 @@
         };
     }
 
-    document.getElementById("analyze-btn").onclick = function() {
-        const name = document.getElementById("pet-name").value;
+    // 분석 실행 메인 함수
+    function runAnalysis() {
+        const name = document.getElementById("pet-name").value.trim();
         if(!petData[name]) return alert("페트 이름을 정확히 입력해주세요.");
         
         const loader = document.getElementById("loading");
@@ -76,17 +85,14 @@
                                     for(let dB=0; dB<=10; dB++) {
                                         const gB = 10 - hB - aB - dB;
                                         if (gB < 0 || gB > 10) continue;
-
                                         const iH = ((pet.healthCoefficient + hR + hB) * c) / 100;
                                         const iA = ((pet.attackCoefficient + aR + aB) * c) / 100;
                                         const iD = ((pet.defenseCoefficient + dR + dB) * c) / 100;
                                         const iG = ((pet.agilityCoefficient + gR + gB) * c) / 100;
-                                        
                                         const fH = Math.floor(iH * 4 + iA + iD + iG);
                                         const fA = Math.floor(iH * 0.1 + iA + iD * 0.1 + iG * 0.05);
                                         const fD = Math.floor(iH * 0.1 + iA * 0.1 + iD + iG * 0.05);
                                         const fG = Math.floor(iG);
-                                        
                                         const key = `${fH} ${fA} ${fD} ${fG}`;
                                         if(!statsMap.has(key)) statsMap.set(key, { matched: 0, s8: 0 });
                                         const e = statsMap.get(key);
@@ -108,24 +114,25 @@
             results.forEach(([stat, data]) => {
                 const s = stat.split(' ').map(Number);
                 const diffStr = `정석 대비 ${s[0]-ideal.health>=0?'+':''}${s[0]-ideal.health} ${s[1]-ideal.attack>=0?'+':''}${s[1]-ideal.attack} ${s[2]-ideal.defense>=0?'+':''}${s[2]-ideal.defense} ${s[3]-ideal.agility>=0?'+':''}${s[3]-ideal.agility}`;
-                
                 let rawProb = ((data.s8 / data.matched) * 100).toFixed(2);
-                // [수정 포인트] 100.00%일 때 99.9%로 변환 출력
                 let displayProb = (rawProb === "100.00") ? "99.9" : rawProb;
-
-                html += `
-                <div class="result-item">
-                    <span class="stat-col">${stat}</span>
-                    <span class="diff-col">${diffStr}</span>
-                    <span class="prob-col">${displayProb}% <span class="detail-text">(${data.s8}/${data.matched})</span></span>
-                </div>`;
+                html += `<div class="result-item"><span class="stat-col">${stat}</span><span class="diff-col">${diffStr}</span><span class="prob-col">${displayProb}% <span class="detail-text">(${data.s8}/${data.matched})</span></span></div>`;
             });
 
-            document.getElementById("result-list").innerHTML = html || "<div style='padding:40px; text-align:center;'>분석된 데이터가 없습니다.</div>";
+            document.getElementById("result-list").innerHTML = html || "<div style='padding:40px; text-align:center;'>조합 데이터 없음</div>";
             loader.style.display = "none"; btn.disabled = false;
-        }, 100);
+        }, 50);
     }
+
+    // [이벤트 리스너] 버튼 클릭 시 실행
+    document.getElementById("analyze-btn").onclick = runAnalysis;
+
+    // [이벤트 리스너] 입력창에서 엔터 키 입력 시 실행
+    document.getElementById("pet-name").addEventListener("keypress", function(e) {
+        if (e.key === "Enter") {
+            runAnalysis();
+        }
+    });
 </script>
 </body>
 </html>
-
