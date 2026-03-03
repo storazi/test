@@ -2,221 +2,144 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>비흡연자의 쉬는시간 - 8등급 확률 분석기</title>
+    <title>비흡연자의 쉬는시간 - 8등급 전수조사</title>
 <style>
     :root {
-        --bg-main: #f4f1ea;
-        --bg-panel: #ffffff;
-        --border-main: #d1cdc0;
-        --accent-gold: #8d7b68;
-        --accent-main: #7a8b7c;
-        --text-main: #4a4a4a;
-        --text-sub: #7d7d7d;
+        --bg: #fdfcf9; --panel: #ffffff; --border: #d1cdc0;
+        --accent: #7a8b7c; --gold: #8d7b68; --text: #4a4a4a;
     }
-
-    body {
-        margin: 0; padding: 0;
-        background: radial-gradient(circle at top, #fdfcf9, #ebe7dc);
-        font-family: 'Pretendard', sans-serif;
-        color: var(--text-main);
-        min-height: 100vh;
-    }
-
-    .container {
-        max-width: 500px;
-        margin: 20px auto;
-        padding: 25px;
-        background: var(--bg-panel);
-        border: 1px solid var(--border-main);
-        border-radius: 24px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-    }
-
-    h1 { text-align: center; margin-bottom: 20px; font-size: 22px; font-weight: 700; color: var(--accent-gold); }
-
-    .intro {
-        margin-bottom: 20px; padding: 15px; background: #fdfcfb;
-        border: 1px solid var(--border-main); border-radius: 14px;
-        line-height: 1.6; text-align: center; color: var(--text-sub); font-size: 13px;
-    }
-
-    .input-group { position: relative; margin-bottom: 20px; }
-    #pet-name {
-        width: 100%; padding: 14px; font-size: 16px; border: 1px solid var(--border-main);
-        border-radius: 12px; box-sizing: border-box; outline-color: var(--accent-main);
-    }
-
-    #suggestions {
-        list-style: none; padding: 0; margin: 0; position: absolute;
-        top: 100%; left: 0; right: 0; background: #fff;
-        border: 1px solid var(--accent-main); border-radius: 0 0 12px 12px;
-        max-height: 200px; overflow-y: auto; z-index: 999; display: none;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-    }
-    #suggestions li { padding: 12px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 14px; }
-    #suggestions li:hover { background: #f9f9f9; }
-
-    button#analyze-btn {
-        width: 100%; padding: 18px; font-size: 17px; font-weight: 700;
-        background: linear-gradient(180deg, #8b9a8d, #7a8b7c);
-        color: #fff; border: none; border-radius: 12px; cursor: pointer;
-    }
-
-    .result-area { margin-top: 25px; border-top: 2px solid var(--border-main); padding-top: 10px; }
-    .result-row {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 12px 8px; border-bottom: 1px solid #eee;
-        transition: background 0.2s;
-    }
-    .result-row:hover { background: #fcfaf5; }
+    body { background: var(--bg); font-family: 'Pretendard', sans-serif; color: var(--text); padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 25px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+    h1 { text-align: center; color: var(--gold); font-size: 20px; margin-bottom: 20px; }
     
-    .stat-text { font-family: 'Consolas', monospace; font-size: 13px; color: #555; }
-    .stat-text b { color: #333; }
-    .prob-info { text-align: right; }
-    .prob-val { color: #e06c75; font-weight: bold; font-size: 15px; display: block; }
-    .match-count { font-size: 11px; color: var(--text-sub); }
+    .search-box { position: relative; margin-bottom: 20px; }
+    #pet-name { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; box-sizing: border-box; }
+    #suggestions { position: absolute; width: 100%; background: white; border: 1px solid var(--accent); z-index: 100; list-style: none; padding: 0; margin: 0; display: none; max-height: 150px; overflow-y: auto; }
+    #suggestions li { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 14px; }
 
-    #loading { display: none; text-align: center; margin-top: 20px; color: var(--accent-main); font-weight: bold; }
+    .summary-card { background: #f8f7f2; padding: 15px; border-radius: 12px; margin-bottom: 20px; font-size: 13px; line-height: 1.6; border-left: 4px solid var(--gold); }
+    
+    .result-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+    .result-table th { background: #eee; padding: 8px; border: 1px solid var(--border); }
+    .result-table td { padding: 8px; border: 1px solid var(--border); text-align: center; font-family: monospace; }
+    .result-table tr:nth-child(even) { background: #fafafa; }
+    
+    #btn-gen { width: 100%; padding: 15px; background: var(--accent); color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; }
+    .badge-s8 { background: #e06c75; color: white; padding: 2px 5px; border-radius: 4px; font-size: 10px; font-weight: bold; }
 </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>8등급 모든 경우의 수</h1>
-    <div class="intro">
-        페트를 선택하고 분석 버튼을 누르시면<br>
-        <strong>±1 변동 범위 내의 모든 조합</strong>과 확률을 나열합니다.
-    </div>
-
-    <div class="input-group">
+    <h1>펫 8등급 모든 능력치 조합 (전수조사)</h1>
+    
+    <div class="search-box">
         <input type="text" id="pet-name" placeholder="페트 이름을 입력하세요..." autocomplete="off">
         <ul id="suggestions"></ul>
     </div>
 
-    <button id="analyze-btn">전체 경우의 수 분석 시작</button>
-    <div id="loading">경우의 수 연산 중 (약 1~2초)...</div>
-    
-    <div id="result-area" class="result-area"></div>
+    <button id="btn-gen">8등급 모든 경우의 수 생성</button>
+
+    <div id="summary" class="summary-card" style="display:none;"></div>
+
+    <div id="result-list">
+        <table class="result-table" id="res-table" style="display:none;">
+            <thead>
+                <tr>
+                    <th>순번</th>
+                    <th>조합 (HP Atk Def Agi)</th>
+                    <th>분배 (h/a/d/s)</th>
+                    <th>판정</th>
+                </tr>
+            </thead>
+            <tbody id="res-body"></tbody>
+        </table>
+    </div>
 </div>
 
 <script>
     let petData = {};
-
-    async function init() {
-        try {
-            const res = await fetch('pet.json');
-            petData = await res.json();
-            document.getElementById('pet-name').placeholder = "페트 이름 또는 초성 입력";
-        } catch(e) { console.error("데이터 로드 실패"); }
+    async function load() {
+        const res = await fetch('pet.json');
+        petData = await res.json();
     }
-    init();
+    load();
 
-    // 정석 초기치 계산 함수
-    function getBaseStats(pet) {
-        const c = pet.initialCoefficient;
-        const h = pet.healthCoefficient + 4.5, a = pet.attackCoefficient + 4.5, d = pet.defenseCoefficient + 4.5, g = pet.agilityCoefficient + 4.5;
-        const ih = (h * c) / 100, ia = (a * c) / 100, id = (d * c) / 100, ig = (g * c) / 100;
-        return {
-            h: Math.floor(ih * 4 + ia + id + ig),
-            a: Math.floor(ih * 0.1 + ia + id * 0.1 + ig * 0.05),
-            d: Math.floor(ih * 0.1 + ia * 0.1 + id + ig * 0.05),
-            g: Math.floor(ig)
-        };
-    }
-
-    const nameInput = document.getElementById('pet-name');
+    const input = document.getElementById('pet-name');
     const sugg = document.getElementById('suggestions');
 
-    nameInput.addEventListener('input', () => {
-        const val = nameInput.value.trim();
+    input.addEventListener('input', () => {
+        const val = input.value;
         sugg.innerHTML = '';
-        if(!val) { sugg.style.display = 'none'; return; }
-        Object.keys(petData).filter(n => n.includes(val)).slice(0, 10).forEach(n => {
+        if(!val) { sugg.style.display='none'; return; }
+        Object.keys(petData).filter(n => n.includes(val)).slice(0,5).forEach(n => {
             const li = document.createElement('li');
             li.textContent = n;
-            li.onclick = () => { nameInput.value = n; sugg.style.display = 'none'; };
+            li.onclick = () => { input.value = n; sugg.style.display='none'; };
             sugg.appendChild(li);
         });
-        sugg.style.display = 'block';
+        sugg.style.display='block';
     });
 
-    document.getElementById('analyze-btn').onclick = function() {
-        const name = nameInput.value;
-        if(!petData[name]) return alert("페트를 먼저 선택해주세요.");
+    document.getElementById('btn-gen').onclick = () => {
+        const name = input.value;
+        if(!petData[name]) return alert("페트를 선택해주세요.");
         
-        document.getElementById('loading').style.display = 'block';
-        document.getElementById('result-area').innerHTML = '';
+        const pet = petData[name];
+        const resBody = document.getElementById('res-body');
+        const summary = document.getElementById('summary');
+        resBody.innerHTML = '';
 
-        setTimeout(() => {
-            const pet = petData[name];
-            const base = getBaseStats(pet);
-            
-            // 시나리오 생성 (정석 포함 ±1 변동 조합들)
-            const scenarios = [
-                { label: "정석", dh:0, da:0, dd:0, dg:0 },
-                { label: "체력+1", dh:1, da:0, dd:0, dg:0 }, { label: "체력-1", dh:-1, da:0, dd:0, dg:0 },
-                { label: "공격+1", dh:0, da:1, dd:0, dg:0 }, { label: "공격-1", dh:0, da:-1, dd:0, dg:0 },
-                { label: "방어+1", dh:0, da:0, dd:1, dg:0 }, { label: "방어-1", dh:0, da:0, dd:-1, dg:0 },
-                { label: "순발+1", dh:0, da:0, dd:0, dg:1 }, { label: "순발-1", dh:0, da:0, dd:0, dg:-1 }
-            ];
+        // 8등급 고정 조건: 모든 랜덤 보정치 hr, ar, dr, gr = 2
+        const hr = 2, ar = 2, dr = 2, gr = 2;
+        const c = pet.initialCoefficient;
+        
+        let combinations = [];
+        let uniqueStats = new Set();
 
-            let html = "";
+        // 보너스 포인트 10점의 모든 분배 경우의 수 탐색 (총 286가지)
+        for (let hb = 0; hb <= 10; hb++) {
+            for (let ab = 0; ab <= 10; ab++) {
+                for (let db = 0; db <= 10; db++) {
+                    let gb = 10 - hb - ab - db;
+                    if (gb < 0 || gb > 10) continue;
 
-            scenarios.forEach(sc => {
-                const targetH = base.h + sc.dh, targetA = base.a + sc.da, targetD = base.d + sc.dd, targetG = base.g + sc.dg;
-                let matchedTotal = 0, s8Count = 0;
+                    const ih = ((pet.healthCoefficient + hr + hb) * c) / 100;
+                    const ia = ((pet.attackCoefficient + ar + ab) * c) / 100;
+                    const id = ((pet.defenseCoefficient + dr + db) * c) / 100;
+                    const ig = ((pet.agilityCoefficient + gr + gb) * c) / 100;
 
-                // 8등급(±2) 내의 모든 랜덤 보정치 조합 탐색
-                for(let hr=-2; hr<=2; hr++){
-                for(let ar=-2; ar<=2; ar++){
-                for(let dr=-2; dr<=2; dr++){
-                for(let gr=-2; gr<=2; gr++){
-                    // 10포인트 분배 보정치 (0~10)
-                    for(let hb=0; hb<=10; hb++){
-                    for(let ab=0; ab<=10; ab++){
-                    for(let db=0; db<=10; db++){
-                        let gb = 10 - hb - ab - db;
-                        if(gb < 0 || gb > 10) continue;
+                    const finalH = Math.floor(ih * 4 + ia + id + ig);
+                    const finalA = Math.floor(ih * 0.1 + ia + id * 0.1 + ig * 0.05);
+                    const finalD = Math.floor(ih * 0.1 + ia * 0.1 + id + ig * 0.05);
+                    const finalG = Math.floor(ig);
 
-                        const c = pet.initialCoefficient;
-                        const ih = ((pet.healthCoefficient + hr + hb) * c) / 100;
-                        const ia = ((pet.attackCoefficient + ar + ab) * c) / 100;
-                        const id = ((pet.defenseCoefficient + dr + db) * c) / 100;
-                        const ig = ((pet.agilityCoefficient + gr + gb) * c) / 100;
-
-                        if(Math.floor(ih*4 + ia + id + ig) === targetH &&
-                           Math.floor(ih*0.1 + ia + id*0.1 + ig*0.05) === targetA &&
-                           Math.floor(ih*0.1 + ia*0.1 + id + ig*0.05) === targetD &&
-                           Math.floor(ig) === targetG) {
-                            
-                            matchedTotal++;
-                            // 8등급(S급) 판정: 모든 랜덤값이 +2인 경우
-                            if(hr === 2 && ar === 2 && dr === 2 && gr === 2) s8Count++;
-                        }
-                    }}}}}}}
-
-                if(matchedTotal > 0) {
-                    const prob = ((s8Count / matchedTotal) * 100).toFixed(2);
-                    html += `
-                        <div class="result-row">
-                            <div class="stat-text">
-                                <b>${sc.label}</b><br>
-                                [${targetH} ${targetA} ${targetD} ${targetG}]
-                            </div>
-                            <div class="prob-info">
-                                <span class="prob-val">${prob}%</span>
-                                <span class="match-count">(일치 ${s8Count} / ${matchedTotal})</span>
-                            </div>
-                        </div>`;
+                    const statStr = `${finalH} ${finalA} ${finalD} ${finalG}`;
+                    combinations.push({
+                        stat: statStr,
+                        dist: `${hb}/${ab}/${db}/${gb}`
+                    });
+                    uniqueStats.add(statStr);
                 }
-            });
+            }
+        }
 
-            document.getElementById('result-area').innerHTML = html || "<div style='text-align:center; padding:20px;'>매칭된 데이터가 없습니다.</div>";
-            document.getElementById('loading').style.display = 'none';
-        }, 100);
+        // 결과 출력
+        summary.innerHTML = `<strong>${name}</strong>의 8등급 분석 결과:<br>보너스 포인트 분배에 따른 총 <strong>${combinations.length}개</strong>의 포인트 조합이 존재하며,<br>최종적으로 <strong>${uniqueStats.size}가지</strong>의 서로 다른 능력치 세트가 만들어질 수 있습니다.`;
+        summary.style.display = 'block';
+        document.getElementById('res-table').style.display = 'table';
+
+        combinations.forEach((item, idx) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${idx + 1}</td>
+                <td><strong>${item.stat}</strong></td>
+                <td>${item.dist}</td>
+                <td><span class="badge-s8">S8급</span></td>
+            `;
+            resBody.appendChild(tr);
+        });
     };
 </script>
-
 </body>
 </html>
