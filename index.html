@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>8등급 전수 분석기 </title>
+    <title>8등급 정밀 전수 분석기 (99.9% 보정)</title>
     <style>
         :root {
             --bg-main: #0a0a0a; --bg-panel: #161616; --border-main: #222222;
@@ -13,22 +13,20 @@
         .container { max-width: 750px; width: 95%; background: var(--bg-panel); border: 1px solid var(--border-main); border-radius: 24px; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
         h1 { text-align: center; background: var(--accent-gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 24px; margin-bottom: 25px; font-weight: 800; }
         #analyze-btn { width: 100%; padding: 18px; background: var(--accent-gold); color: #000; border: none; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 17px; margin-bottom: 20px; }
-        #analyze-btn:disabled { opacity: 0.3; cursor: not-allowed; }
         .result-list { border: 1px solid var(--border-main); border-radius: 12px; background: #000; overflow: hidden; }
-        .result-item { display: flex; justify-content: space-between; padding: 14px 15px; border-bottom: 1px solid #1a1a1a; font-family: 'Consolas', monospace; font-size: 13px; align-items: center; }
+        .result-item { display: flex; justify-content: space-between; padding: 14px 15px; border-bottom: 1px solid #1a1a1a; font-family: 'Consolas', monospace; font-size: 13.5px; align-items: center; }
         .stat-col { flex: 1.5; color: #fff; font-weight: bold; }
-        .diff-col { flex: 2.2; color: var(--text-sub); text-align: center; font-size: 12px; }
-        .prob-col { flex: 2; text-align: right; color: var(--text-gold); font-weight: bold; font-size: 14px; }
+        .diff-col { flex: 2.2; color: var(--text-sub); text-align: center; font-size: 12.5px; }
+        .prob-col { flex: 2; text-align: right; color: var(--text-gold); font-weight: bold; font-size: 15px; }
         .detail-text { font-size: 11px; opacity: 0.5; font-weight: normal; margin-left: 5px; color: #fff; }
         #loading { display: none; text-align: center; color: var(--text-gold); margin-bottom: 15px; font-weight: bold; }
-        input[type="text"] { width: 100%; padding: 15px; background: #000; color: #fff; border: 1px solid #222; border-radius: 12px; margin-bottom: 15px; outline: none; }
-        input[type="text"]:focus { border-color: #ff9500; }
+        input[type="text"] { width: 100%; padding: 15px; background: #000; color: #fff; border: 1px solid var(--border-main); border-radius: 12px; margin-bottom: 15px; outline: none; font-size: 16px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>시가 계산기</h1>
-        <input type="text" id="pet-name" placeholder="페트 이름을 입력하세요..." autocomplete="off">
+        <h1>8등급 정밀 분석 (100% → 99.9% 보정)</h1>
+        <input type="text" id="pet-name" placeholder="페트 이름을 입력하세요 (예: 가스트, 만모 등)" autocomplete="off">
         <button id="analyze-btn">데이터 분석 시작</button>
         <div id="loading">모든 조합 시뮬레이션 중... (최대 3초)</div>
         <div id="result-list" class="result-list"></div>
@@ -36,12 +34,8 @@
 
 <script>
     let petData = {};
-    fetch('pet.json').then(r => r.json()).then(d => {
-        petData = d;
-        document.getElementById("analyze-btn").disabled = false;
-    }).catch(() => alert("pet.json 파일을 찾을 수 없습니다."));
+    fetch('pet.json').then(r => r.json()).then(d => petData = d).catch(() => alert("pet.json 로드 실패"));
 
-    // [시가 계산기 공식 그대로 복사]
     function calculateIdealStats(pet) {
         const bH = pet.healthCoefficient + 4.5;
         const bA = pet.attackCoefficient + 4.5;
@@ -65,8 +59,7 @@
         
         const loader = document.getElementById("loading");
         const btn = document.getElementById("analyze-btn");
-        loader.style.display = "block";
-        btn.disabled = true;
+        loader.style.display = "block"; btn.disabled = true;
         
         setTimeout(() => {
             const pet = petData[name];
@@ -74,7 +67,6 @@
             const statsMap = new Map();
             const c = pet.initialCoefficient;
 
-            // [시가 계산기 5차원 루프 로직 100% 동일 구현]
             for(let hR=-2; hR<=2; hR++) {
                 for(let aR=-2; aR<=2; aR++) {
                     for(let dR=-2; dR<=2; dR++) {
@@ -85,7 +77,6 @@
                                         const gB = 10 - hB - aB - dB;
                                         if (gB < 0 || gB > 10) continue;
 
-                                        // 시가 계산기 내부 변수명 및 수식 순서 일치
                                         const iH = ((pet.healthCoefficient + hR + hB) * c) / 100;
                                         const iA = ((pet.attackCoefficient + aR + aB) * c) / 100;
                                         const iD = ((pet.defenseCoefficient + dR + dB) * c) / 100;
@@ -109,44 +100,31 @@
                 }
             }
 
-            // [결과 처리: S8 가능성이 있는 것만 추출 및 정렬]
             const results = Array.from(statsMap.entries())
                 .filter(i => i[1].s8 > 0)
-                .sort((a,b) => {
-                    const probA = a[1].s8 / a[1].matched;
-                    const probB = b[1].s8 / b[1].matched;
-                    return probB - probA; // 확률 높은 순
-                });
+                .sort((a,b) => (b[1].s8/b[1].matched) - (a[1].s8/a[1].matched));
 
             let html = "";
             results.forEach(([stat, data]) => {
                 const s = stat.split(' ').map(Number);
-                const diffH = s[0] - ideal.health;
-                const diffA = s[1] - ideal.attack;
-                const diffD = s[2] - ideal.defense;
-                const diffG = s[3] - ideal.agility;
+                const diffStr = `정석 대비 ${s[0]-ideal.health>=0?'+':''}${s[0]-ideal.health} ${s[1]-ideal.attack>=0?'+':''}${s[1]-ideal.attack} ${s[2]-ideal.defense>=0?'+':''}${s[2]-ideal.defense} ${s[3]-ideal.agility>=0?'+':''}${s[3]-ideal.agility}`;
                 
-                const fmt = (v) => (v >= 0 ? `+${v}` : `${v}`);
-                const diffStr = `정석 기준 ${fmt(diffH)} ${fmt(diffA)} ${fmt(diffD)} ${fmt(diffG)}`;
-                
-                let p = ((data.s8 / data.matched) * 100).toFixed(2);
-                // 시가 계산기의 특수 처리 (100%일 때 99.9%로 표기하는 로직이 필요하다면 아래 주석 해제)
-                // if (p === "100.00") p = "99.90";
+                let rawProb = ((data.s8 / data.matched) * 100).toFixed(2);
+                // [수정 포인트] 100.00%일 때 99.9%로 변환 출력
+                let displayProb = (rawProb === "100.00") ? "99.9" : rawProb;
 
                 html += `
                 <div class="result-item">
                     <span class="stat-col">${stat}</span>
                     <span class="diff-col">${diffStr}</span>
-                    <span class="prob-col">${p}% <span class="detail-text">(${data.s8}/${data.matched})</span></span>
+                    <span class="prob-col">${displayProb}% <span class="detail-text">(${data.s8}/${data.matched})</span></span>
                 </div>`;
             });
 
-            document.getElementById("result-list").innerHTML = html || "<div style='padding:20px; text-align:center;'>8등급 가능 조합 없음</div>";
-            loader.style.display = "none";
-            btn.disabled = false;
+            document.getElementById("result-list").innerHTML = html || "<div style='padding:40px; text-align:center;'>분석된 데이터가 없습니다.</div>";
+            loader.style.display = "none"; btn.disabled = false;
         }, 100);
     }
 </script>
 </body>
 </html>
-
