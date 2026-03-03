@@ -2,56 +2,67 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>비흡연자의 쉬는시간 - 8등급 확률 분석기</title>
+    <title>비흡연자의 쉬는시간 - 8등급 상세 분석기</title>
 <style>
     :root {
         --bg: #fdfcf9; --panel: #ffffff; --border: #d1cdc0;
         --accent: #7a8b7c; --gold: #8d7b68; --text: #4a4a4a;
     }
     body { background: var(--bg); font-family: 'Pretendard', sans-serif; color: var(--text); padding: 10px; }
-    .container { max-width: 600px; margin: 0 auto; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 25px; }
-    h1 { text-align: center; color: var(--gold); font-size: 18px; margin-bottom: 20px; }
+    .container { max-width: 650px; margin: 0 auto; background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    h1 { text-align: center; color: var(--gold); font-size: 18px; margin-bottom: 20px; border-bottom: 2px solid #f0eee5; padding-bottom: 15px; }
     
     .input-group { margin-bottom: 20px; position: relative; }
-    #pet-name { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; box-sizing: border-box; }
-    #suggestions { position: absolute; width: 100%; background: white; border: 1px solid var(--accent); z-index: 100; list-style: none; padding: 0; margin: 0; display: none; max-height: 150px; overflow-y: auto; }
-    #suggestions li { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 14px; }
+    #pet-name { width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 12px; box-sizing: border-box; font-size: 15px; outline-color: var(--accent); }
+    #suggestions { position: absolute; width: 100%; background: white; border: 1px solid var(--accent); z-index: 100; list-style: none; padding: 0; margin: 0; display: none; max-height: 200px; overflow-y: auto; border-radius: 0 0 12px 12px; }
+    #suggestions li { padding: 12px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 14px; }
 
-    .result-item {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 15px 10px; border-bottom: 1px solid #eee; font-family: 'Consolas', monospace;
-    }
-    .stat-main { font-size: 15px; font-weight: bold; }
-    .stat-diff { font-size: 12px; color: #888; margin-top: 4px; display: block; }
-    .prob-area { text-align: right; }
-    .prob-val { color: #e06c75; font-weight: bold; font-size: 16px; display: block; }
-    .prob-detail { font-size: 11px; color: #aaa; }
+    #btn-run { width: 100%; padding: 16px; background: var(--accent); color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 16px; margin-bottom: 20px; }
     
-    #btn-run { width: 100%; padding: 15px; background: var(--accent); color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; }
+    .result-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 12px 10px; border-bottom: 1px solid #f1f1f1;
+        font-family: 'Consolas', 'Courier New', monospace; font-size: 13px;
+    }
+    .result-row:hover { background: #fcfaf5; }
+    
+    .stat-part { flex: 1.5; font-weight: bold; color: #333; }
+    .diff-part { flex: 2; color: #666; text-align: center; }
+    .prob-part { flex: 1.5; text-align: right; color: #e06c75; font-weight: bold; }
+    .detail-part { font-size: 11px; color: #aaa; margin-left: 5px; font-weight: normal; }
+
+    .header-row { background: #f8f7f2; font-weight: bold; border-top: 1px solid var(--border); border-bottom: 2px solid var(--border); color: var(--gold); }
 </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>8등급 모든 경우의 수 & 변동치 분석</h1>
+    <h1>8등급 전 범위 확률 리스트</h1>
     
     <div class="input-group">
-        <input type="text" id="pet-name" placeholder="페트 이름을 입력하세요..." autocomplete="off">
+        <input type="text" id="pet-name" placeholder="페트 이름을 입력하세요 (예: 가스트, 만모 등)" autocomplete="off">
         <ul id="suggestions"></ul>
     </div>
 
-    <button id="btn-run">분석 시작</button>
+    <button id="btn-run">경우의 수 및 확률 추출</button>
 
-    <div id="result-list" style="margin-top:20px;"></div>
+    <div id="result-header" class="result-row header-row" style="display:none;">
+        <span class="stat-part">능력치 조합</span>
+        <span class="diff-part">정석 기준 변동</span>
+        <span class="prob-part">확률 (S8비중)</span>
+    </div>
+    <div id="result-list"></div>
 </div>
 
 <script>
     let petData = {};
-    async function load() {
-        const res = await fetch('pet.json');
-        petData = await res.json();
+    async function init() {
+        try {
+            const res = await fetch('pet.json');
+            petData = await res.json();
+        } catch(e) { console.error("데이터를 불러올 수 없습니다."); }
     }
-    load();
+    init();
 
     const input = document.getElementById('pet-name');
     const sugg = document.getElementById('suggestions');
@@ -82,17 +93,18 @@
 
     document.getElementById('btn-run').onclick = () => {
         const name = input.value;
-        if(!petData[name]) return alert("페트를 선택해주세요.");
+        if(!petData[name]) return alert("페트를 선택해 주세요.");
         
         const pet = petData[name];
         const base = getBaseStats(pet);
         const resList = document.getElementById('result-list');
+        document.getElementById('result-header').style.display = 'flex';
         resList.innerHTML = '';
 
         const statsCountMap = new Map();
-        let totalSimulations = 0;
+        let totalSims = 0;
 
-        // 8등급(보정치 +2) 상황에서 보너스 포인트 286가지 전수조사
+        // 8등급(보정치 +2) 고정, 보너스 포인트 10점 분배 시뮬레이션
         for (let hb = 0; hb <= 10; hb++) {
             for (let ab = 0; ab <= 10; ab++) {
                 for (let db = 0; db <= 10; db++) {
@@ -112,35 +124,34 @@
 
                     const key = `${curH} ${curA} ${curD} ${curG}`;
                     statsCountMap.set(key, (statsCountMap.get(key) || 0) + 1);
-                    totalSimulations++;
+                    totalSims++;
                 }
             }
         }
 
+        // 확률 높은 순 정렬
         const sorted = Array.from(statsCountMap.entries()).sort((a, b) => b[1] - a[1]);
 
         sorted.forEach(([statStr, count]) => {
             const parts = statStr.split(' ').map(Number);
-            const diffH = (parts[0] - base.h) >= 0 ? `+${parts[0] - base.h}` : parts[0] - base.h;
-            const diffA = (parts[1] - base.a) >= 0 ? `+${parts[1] - base.a}` : parts[1] - base.a;
-            const diffD = (parts[2] - base.d) >= 0 ? `+${parts[2] - base.d}` : parts[2] - base.d;
-            const diffG = (parts[3] - base.g) >= 0 ? `+${parts[3] - base.g}` : parts[3] - base.g;
+            
+            // 변동치 계산 (부호 포함)
+            const getDiff = (cur, b) => {
+                const diff = cur - b;
+                return diff >= 0 ? `+${diff}` : `${diff}`;
+            };
+            
+            const diffStr = `${getDiff(parts[0], base.h)} ${getDiff(parts[1], base.a)} ${getDiff(parts[2], base.d)} ${getDiff(parts[3], base.g)}`;
+            const prob = ((count / totalSims) * 100).toFixed(2);
 
-            const prob = ((count / totalSimulations) * 100).toFixed(2);
-
-            const div = document.createElement('div');
-            div.className = 'result-item';
-            div.innerHTML = `
-                <div>
-                    <span class="stat-main">${statStr}</span>
-                    <span class="stat-diff">정석대비: ${diffH} ${diffA} ${diffD} ${diffG}</span>
-                </div>
-                <div class="prob-area">
-                    <span class="prob-val">${prob}%</span>
-                    <span class="prob-detail">(S8: ${count} / 전체: 286)</span>
-                </div>
+            const row = document.createElement('div');
+            row.className = 'result-row';
+            row.innerHTML = `
+                <span class="stat-part">${statStr}</span>
+                <span class="diff-part">정석 기준 ${diffStr}</span>
+                <span class="prob-part">${prob}% <span class="detail-part">(${count}/${totalSims})</span></span>
             `;
-            resList.appendChild(div);
+            resList.appendChild(row);
         });
     };
 </script>
