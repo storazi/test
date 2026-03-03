@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>비흡연자의 쉬는시간 - 능력치 확률 계산기</title>
+<style>
+    :root {
+        --bg-main: #f4f1ea; --bg-panel: #ffffff; --border-main: #d1cdc0;
+        --accent-main: #7a8b7c; --accent-gold: #8d7b68; --text-main: #4a4a4a; --text-sub: #7d7d7d;
+    }
+    body { background: #fdfcf9; font-family: 'Pretendard', sans-serif; color: var(--text-main); margin: 0; }
+    .container { max-width: 500px; margin: 20px auto; padding: 25px; background: var(--bg-panel); border: 1px solid var(--border-main); border-radius: 24px; }
+    h1 { text-align: center; color: var(--accent-gold); font-size: 22px; }
+    .intro { margin-bottom: 20px; padding: 12px; background: #fdfcfb; border-radius: 12px; font-size: 13px; text-align: center; color: var(--text-sub); border: 1px solid var(--border-main); }
+    .input-group { position: relative; margin-bottom: 15px; }
+    input[type="text"] { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--border-main); box-sizing: border-box; }
+    .stat-table { width: 100%; margin-top: 15px; border-collapse: collapse; font-size: 14px; }
+    .stat-table th { background: #f8f7f2; padding: 10px; border: 1px solid var(--border-main); }
+    .stat-table td { padding: 10px; border: 1px solid var(--border-main); text-align: center; }
+    #suggestions { position: absolute; width: 100%; background: white; border: 1px solid var(--accent-main); z-index: 10; list-style: none; padding: 0; margin: 0; display: none; }
+    #suggestions li { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; }
+    button#calculate-btn { width: 100%; padding: 15px; background: var(--accent-main); color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; margin-top: 20px; }
+    .result-list { margin-top: 20px; }
+    .result-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; font-family: monospace; font-size: 13px; }
+    .result-row:hover { background: #f9f9f9; }
+    .prob-tag { font-weight: bold; color: #e06c75; }
+    #loading { display: none; text-align: center; padding: 20px; font-weight: bold; color: var(--accent-main); }
+</style>
+</head>
+<body>
+    <div class="container">
+        <h1>능력치별 8등급 확률 분석</h1>
+        <div class="intro">페트 선택 후 <strong>'분석 시작'</strong>을 누르면<br>모든 초기치 경우의 수와 확률을 나열합니다.</div>
+
+        <div class="input-group">
+            <input type="text" id="pet-name" placeholder="페트 이름 입력..." autocomplete="off">
+            <ul id="suggestions"></ul>
+        </div>
+
+        <button id="calculate-btn">분석 시작</button>
+        <div id="loading">모든 시나리오 계산 중...</div>
+        <div id="result-area" class="result-list"></div>
+    </div>
+
+<script>
+    let petData = {};
+    async function loadData() {
+        const res = await fetch('pet.json');
+        petData = await res.json();
+    }
+    loadData();
+
+    // 정석 초기치 계산 (Floor 기준)
+    function getBaseStats(pet) {
+        const c = pet.initialCoefficient, h = pet.healthCoefficient+4.5, a = pet.attackCoefficient+4.5, d = pet.defenseCoefficient+4.5, g = pet.agilityCoefficient+4.5;
+        return {
+            h: Math.floor(((h*c)/100)*4 + ((a*c)/100) + ((d*c)/100) + ((g*c)/100)),
+            a: Math.floor(((h*c)/100)*0.1 + ((a*c)/100) + ((d*c)/100)*0.1 + ((g*c)/100)*0.05),
+            d: Math.floor(((h*c)/100)*0.1 + ((a*c)/100)*0.1 + ((d*c)/100) + ((g*c)/100)*0.05),
+            g: Math.floor((g*c)/100)
+        };
+    }
+
+    const input = document.getElementById('pet-name');
+    const sugg = document.getElementById('suggestions');
+
+    input.addEventListener('input', () => {
+        const val = input.value;
+        sugg.innerHTML = '';
+        if(!val) { sugg.style.display='none'; return; }
+        Object.keys(petData).filter(n => n.includes(val)).slice(0,5).forEach(n => {
+            const li = document.createElement('li');
+            li.textContent = n;
+            li.onclick = () => { input.value = n; sugg.style.display='none'; };
+            sugg.appendChild(li);
+        });
+        sugg.style.display='block';
+    });
+
+    document.getElementById('calculate-btn').onclick = () => {
+        const name = input.value;
+        if(!petData[name]) return alert("페트를 선택해주세요.");
+        
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('result-area').innerHTML = '';
+
+        setTimeout(() => {
+            const pet = petData[name];
+            const base = getBaseStats(pet);
+            const scenarios = [
+                { n: "정석", h:0, a:0, d:0, g:0 },
+                { n: "체력-1", h:-1, a:0, d:0, g:0 }, { n: "체력+1", h:1, a:0, d:0, g:0 },
+                { n: "공격-1", h:0, a:-1, d:0, g:0 }, { n: "공격+1", h:0, a:1, d:0, g:0 },
+                { n: "방어-1", h:0, a:0, d:-1, g:0 }, { n: "방어+1", h:0, a:0, d:1, g:0 },
+                { n: "순발-1", h:0, a:0, d:0, g:-1 }, { n: "순발+1", h:0, a:0, d:0, g:1 }
+            ];
+
+            let html = "";
+            scenarios.forEach(sc => {
+                const targetH = base.h + sc.h, targetA = base.a + sc.a, targetD = base.d + sc.d, targetG = base.g + sc.g;
+                let matched = 0, s8 = 0;
+
+                // 8등급(±2 범위) 루프 탐색
+                for(let hr=-2; hr<=2; hr++){
+                for(let ar=-2; ar<=2; ar++){
+                for(let dr=-2; dr<=2; dr++){
+                for(let gr=-2; gr<=2; gr++){
+                    for(let hb=0; hb<=10; hb++){
+                    for(let ab=0; ab<=10; ab++){
+                    for(let db=0; db<=10; db++){
+                        let gb = 10-hb-ab-db; if(gb<0 || gb>10) continue;
+                        const c = pet.initialCoefficient;
+                        const ih = ((pet.healthCoefficient+hr+hb)*c)/100;
+                        const ia = ((pet.attackCoefficient+ar+ab)*c)/100;
+                        const id = ((pet.defenseCoefficient+dr+db)*c)/100;
+                        const ig = ((pet.agilityCoefficient+gr+gb)*c)/100;
+
+                        if(Math.floor(ih*4+ia+id+ig) === targetH &&
+                           Math.floor(ih*0.1+ia+id*0.1+ig*0.05) === targetA &&
+                           Math.floor(ih*0.1+ia*0.1+id+ig*0.05) === targetD &&
+                           Math.floor(ig) === targetG) {
+                            matched++;
+                            if(hr===2 && ar===2 && dr===2 && gr===2) s8++; // S급(8등급) 판정
+                        }
+                    }}}}}}}
+
+                const prob = matched > 0 ? ((s8/matched)*100).toFixed(2) : "0.00";
+                html += `
+                <div class="result-row">
+                    <span>${sc.n} [${targetH} ${targetA} ${targetD} ${targetG}]</span>
+                    <span class="prob-tag">8등급 확률: ${prob}%</span>
+                </div>`;
+            });
+
+            document.getElementById('result-area').innerHTML = html;
+            document.getElementById('loading').style.display = 'none';
+        }, 100);
+    };
+</script>
+</body>
+</html>
