@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>비흡연자의 쉬는시간 - 8등급 최적화 분석기</title>
+    <title>8등급 정밀 전수 분석기 (로직 동기화)</title>
     <style>
         :root {
             --bg-main: #0a0a0a; --bg-panel: #161616; --border-main: #222222;
@@ -10,148 +10,142 @@
             --text-gold: #ffd447; --text-main: #e0e0e0; --text-sub: #999999;
         }
         body { background-color: var(--bg-main); color: var(--text-main); font-family: 'Pretendard', sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .container { max-width: 650px; width: 95%; background: var(--bg-panel); border: 1px solid var(--border-main); border-radius: 24px; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
-        h1 { text-align: center; background: var(--accent-gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 24px; margin-bottom: 25px; }
-        
-        .input-group { position: relative; margin-bottom: 20px; }
-        input[type="text"] { width: 100%; padding: 15px; background: #000; border: 1px solid var(--border-main); color: #fff; border-radius: 12px; box-sizing: border-box; font-size: 16px; }
-        
-        #suggestions { position: absolute; width: 100%; background: #1a1a1a; border: 1px solid #ff9500; border-radius: 0 0 12px 12px; z-index: 999; display: none; list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto; }
-        #suggestions li { padding: 12px; cursor: pointer; border-bottom: 1px solid #222; font-size: 14px; }
-        #suggestions li:hover { background: rgba(255, 212, 71, 0.1); }
-
-        button#analyze-btn { width: 100%; padding: 18px; background: var(--accent-gold); color: #000; border: none; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 17px; margin-bottom: 25px; }
-        
-        .result-list { border: 1px solid var(--border-main); border-radius: 12px; overflow: hidden; background: #000; }
-        .result-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 15px; border-bottom: 1px solid #1a1a1a; font-family: 'Consolas', monospace; font-size: 13.5px; }
-        .result-item:last-child { border-bottom: none; }
-        .result-item:hover { background: rgba(255, 255, 255, 0.03); }
-        
-        .stat-col { flex: 1.2; font-weight: bold; color: #fff; }
+        .container { max-width: 750px; width: 95%; background: var(--bg-panel); border: 1px solid var(--border-main); border-radius: 24px; padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        h1 { text-align: center; background: var(--accent-gold); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 24px; margin-bottom: 25px; font-weight: 800; }
+        #analyze-btn { width: 100%; padding: 18px; background: var(--accent-gold); color: #000; border: none; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 17px; margin-bottom: 20px; }
+        #analyze-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .result-list { border: 1px solid var(--border-main); border-radius: 12px; background: #000; overflow: hidden; }
+        .result-item { display: flex; justify-content: space-between; padding: 14px 15px; border-bottom: 1px solid #1a1a1a; font-family: 'Consolas', monospace; font-size: 13px; align-items: center; }
+        .stat-col { flex: 1.5; color: #fff; font-weight: bold; }
         .diff-col { flex: 2.2; color: var(--text-sub); text-align: center; font-size: 12px; }
-        .prob-col { flex: 1.6; text-align: right; color: var(--text-gold); font-weight: bold; }
-        .detail-text { font-size: 11px; opacity: 0.5; font-weight: normal; margin-left: 4px; }
+        .prob-col { flex: 2; text-align: right; color: var(--text-gold); font-weight: bold; font-size: 14px; }
+        .detail-text { font-size: 11px; opacity: 0.5; font-weight: normal; margin-left: 5px; color: #fff; }
+        #loading { display: none; text-align: center; color: var(--text-gold); margin-bottom: 15px; font-weight: bold; }
+        input[type="text"] { width: 100%; padding: 15px; background: #000; color: #fff; border: 1px solid #222; border-radius: 12px; margin-bottom: 15px; outline: none; }
+        input[type="text"]:focus { border-color: #ff9500; }
     </style>
 </head>
 <body>
-
-<div class="container">
-    <h1>8등급(S8) 모든 경우의 수</h1>
-    
-    <div class="input-group">
+    <div class="container">
+        <h1>8등급 정밀 분석 (시가 로직 일치)</h1>
         <input type="text" id="pet-name" placeholder="페트 이름을 입력하세요..." autocomplete="off">
-        <ul id="suggestions"></ul>
+        <button id="analyze-btn">데이터 분석 시작</button>
+        <div id="loading">모든 조합 시뮬레이션 중... (최대 3초)</div>
+        <div id="result-list" class="result-list"></div>
     </div>
-
-    <button id="analyze-btn">8등급 확률 리스트 추출</button>
-
-    <div id="result-list" class="result-list">
-        <div style="padding:40px; text-align:center; color:var(--text-sub); font-size:14px;">페트를 선택하고 버튼을 눌러주세요.</div>
-    </div>
-</div>
 
 <script>
     let petData = {};
-    async function loadData() {
-        try {
-            const res = await fetch('pet.json');
-            petData = await res.json();
-        } catch(e) { console.error("데이터 로드 실패"); }
-    }
-    loadData();
+    fetch('pet.json').then(r => r.json()).then(d => {
+        petData = d;
+        document.getElementById("analyze-btn").disabled = false;
+    }).catch(() => alert("pet.json 파일을 찾을 수 없습니다."));
 
-    // 정석 스탯 계산식
-    function getIdealStats(pet) {
-        const c = pet.initialCoefficient;
-        const bH = pet.healthCoefficient + 4.5, bA = pet.attackCoefficient + 4.5, bD = pet.defenseCoefficient + 4.5, bG = pet.agilityCoefficient + 4.5;
-        const iH = (bH * c) / 100, iA = (bA * c) / 100, iD = (bD * c) / 100, iG = (bG * c) / 100;
+    // [시가 계산기 공식 그대로 복사]
+    function calculateIdealStats(pet) {
+        const bH = pet.healthCoefficient + 4.5;
+        const bA = pet.attackCoefficient + 4.5;
+        const bD = pet.defenseCoefficient + 4.5;
+        const bG = pet.agilityCoefficient + 4.5;
+        const iH = (bH * pet.initialCoefficient) / 100;
+        const iA = (bA * pet.initialCoefficient) / 100;
+        const iD = (bD * pet.initialCoefficient) / 100;
+        const iG = (bG * pet.initialCoefficient) / 100;
         return {
-            h: Math.floor(iH * 4 + iA + iD + iG),
-            a: Math.floor(iH * 0.1 + iA + iD * 0.1 + iG * 0.05),
-            d: Math.floor(iH * 0.1 + iA * 0.1 + iD + iG * 0.05),
-            g: Math.floor(iG)
+            health: Math.floor(iH * 4 + iA + iD + iG),
+            attack: Math.floor(iH * 0.1 + iA + iD * 0.1 + iG * 0.05),
+            defense: Math.floor(iH * 0.1 + iA * 0.1 + iD + iG * 0.05),
+            agility: Math.floor(iG)
         };
     }
 
-    const input = document.getElementById("pet-name");
-    const sugg = document.getElementById("suggestions");
-
-    input.addEventListener("input", () => {
-        const val = input.value;
-        sugg.innerHTML = "";
-        if(!val) { sugg.style.display="none"; return; }
-        Object.keys(petData).filter(n => n.includes(val)).slice(0, 10).forEach(name => {
-            const li = document.createElement("li");
-            li.textContent = name;
-            li.onclick = () => { input.value = name; sugg.style.display = "none"; };
-            sugg.appendChild(li);
-        });
-        sugg.style.display = "block";
-    });
-
     document.getElementById("analyze-btn").onclick = function() {
-        const name = input.value;
-        if(!petData[name]) return alert("페트를 선택해 주세요.");
+        const name = document.getElementById("pet-name").value;
+        if(!petData[name]) return alert("페트 이름을 정확히 입력해주세요.");
         
-        const pet = petData[name];
-        const ideal = getIdealStats(pet);
-        const resList = document.getElementById("result-list");
-        resList.innerHTML = "";
+        const loader = document.getElementById("loading");
+        const btn = document.getElementById("analyze-btn");
+        loader.style.display = "block";
+        btn.disabled = true;
+        
+        setTimeout(() => {
+            const pet = petData[name];
+            const ideal = calculateIdealStats(pet);
+            const statsMap = new Map();
+            const c = pet.initialCoefficient;
 
-        const statsCountMap = new Map();
-        let totalCount = 0;
+            // [시가 계산기 5차원 루프 로직 100% 동일 구현]
+            for(let hR=-2; hR<=2; hR++) {
+                for(let aR=-2; aR<=2; aR++) {
+                    for(let dR=-2; dR<=2; dR++) {
+                        for(let gR=-2; gR<=2; gR++) {
+                            for(let hB=0; hB<=10; hB++) {
+                                for(let aB=0; aB<=10; aB++) {
+                                    for(let dB=0; dB<=10; dB++) {
+                                        const gB = 10 - hB - aB - dB;
+                                        if (gB < 0 || gB > 10) continue;
 
-        // 8등급 고정 (+2) 연산: 오직 보너스 포인트 10점 분배(286가지)만 계산
-        for (let hb = 0; hb <= 10; hb++) {
-            for (let ab = 0; ab <= 10; ab++) {
-                for (let db = 0; db <= 10; db++) {
-                    const gb = 10 - hb - ab - db;
-                    if (gb < 0 || gb > 10) continue;
-
-                    const c = pet.initialCoefficient;
-                    const iH = ((pet.healthCoefficient + 2 + hb) * c) / 100;
-                    const iA = ((pet.attackCoefficient + 2 + ab) * c) / 100;
-                    const iD = ((pet.defenseCoefficient + 2 + db) * c) / 100;
-                    const iG = ((pet.agilityCoefficient + 2 + gb) * c) / 100;
-
-                    const fH = Math.floor(iH * 4 + iA + iD + iG);
-                    const fA = Math.floor(iH * 0.1 + iA + iD * 0.1 + iG * 0.05);
-                    const fD = Math.floor(iH * 0.1 + iA * 0.1 + iD + iG * 0.05);
-                    const fG = Math.floor(iG);
-
-                    const key = `${fH} ${fA} ${fD} ${fG}`;
-                    statsCountMap.set(key, (statsCountMap.get(key) || 0) + 1);
-                    totalCount++;
+                                        // 시가 계산기 내부 변수명 및 수식 순서 일치
+                                        const iH = ((pet.healthCoefficient + hR + hB) * c) / 100;
+                                        const iA = ((pet.attackCoefficient + aR + aB) * c) / 100;
+                                        const iD = ((pet.defenseCoefficient + dR + dB) * c) / 100;
+                                        const iG = ((pet.agilityCoefficient + gR + gB) * c) / 100;
+                                        
+                                        const fH = Math.floor(iH * 4 + iA + iD + iG);
+                                        const fA = Math.floor(iH * 0.1 + iA + iD * 0.1 + iG * 0.05);
+                                        const fD = Math.floor(iH * 0.1 + iA * 0.1 + iD + iG * 0.05);
+                                        const fG = Math.floor(iG);
+                                        
+                                        const key = `${fH} ${fA} ${fD} ${fG}`;
+                                        if(!statsMap.has(key)) statsMap.set(key, { matched: 0, s8: 0 });
+                                        const e = statsMap.get(key);
+                                        e.matched++;
+                                        if(hR===2 && aR===2 && dR===2 && gR===2) e.s8++;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
-        }
 
-        // 확률 높은 순 정렬
-        const sorted = Array.from(statsCountMap.entries()).sort((a, b) => b[1] - a[1]);
+            // [결과 처리: S8 가능성이 있는 것만 추출 및 정렬]
+            const results = Array.from(statsMap.entries())
+                .filter(i => i[1].s8 > 0)
+                .sort((a,b) => {
+                    const probA = a[1].s8 / a[1].matched;
+                    const probB = b[1].s8 / b[1].matched;
+                    return probB - probA; // 확률 높은 순
+                });
 
-        sorted.forEach(([statStr, count]) => {
-            const s = statStr.split(' ').map(Number);
-            const getDiff = (cur, base) => {
-                const diff = cur - base;
-                return diff >= 0 ? `+${diff}` : `${diff}`;
-            };
-            
-            const diffStr = `${getDiff(s[0], ideal.h)} ${getDiff(s[1], ideal.a)} ${getDiff(s[2], ideal.d)} ${getDiff(s[3], ideal.g)}`;
-            const prob = ((count / totalCount) * 100).toFixed(2);
+            let html = "";
+            results.forEach(([stat, data]) => {
+                const s = stat.split(' ').map(Number);
+                const diffH = s[0] - ideal.health;
+                const diffA = s[1] - ideal.attack;
+                const diffD = s[2] - ideal.defense;
+                const diffG = s[3] - ideal.agility;
+                
+                const fmt = (v) => (v >= 0 ? `+${v}` : `${v}`);
+                const diffStr = `정석 기준 ${fmt(diffH)} ${fmt(diffA)} ${fmt(diffD)} ${fmt(diffG)}`;
+                
+                let p = ((data.s8 / data.matched) * 100).toFixed(2);
+                // 시가 계산기의 특수 처리 (100%일 때 99.9%로 표기하는 로직이 필요하다면 아래 주석 해제)
+                // if (p === "100.00") p = "99.90";
 
-            const item = document.createElement("div");
-            item.className = "result-item";
-            item.innerHTML = `
-                <div class="stat-col">${statStr}</div>
-                <div class="diff-col">정석 기준 ${diffStr}</div>
-                <div class="prob-col">
-                    ${prob}%
-                    <span class="detail-text">(${count}/${totalCount})</span>
-                </div>
-            `;
-            resList.appendChild(item);
-        });
-    };
+                html += `
+                <div class="result-item">
+                    <span class="stat-col">${stat}</span>
+                    <span class="diff-col">${diffStr}</span>
+                    <span class="prob-col">${p}% <span class="detail-text">(${data.s8}/${data.matched})</span></span>
+                </div>`;
+            });
+
+            document.getElementById("result-list").innerHTML = html || "<div style='padding:20px; text-align:center;'>8등급 가능 조합 없음</div>";
+            loader.style.display = "none";
+            btn.disabled = false;
+        }, 100);
+    }
 </script>
 </body>
 </html>
